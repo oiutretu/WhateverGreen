@@ -893,7 +893,7 @@
 				1C748C301C21952C0024EED2 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
 		1C748C311C21952C0024EED2 /* Build configuration list for PBXNativeTarget "WhateverGreen" */ = {
 			isa = XCConfigurationList;
@@ -903,7 +903,7 @@
 				1C748C331C21952C0024EED2 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
 		CE7FC0C120F6821600138088 /* Build configuration list for PBXNativeTarget "ResourceConverter" */ = {
 			isa = XCConfigurationList;
@@ -913,7 +913,7 @@
 				CE7FC0C320F6821600138088 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
 	};
