@@ -128,6 +128,7 @@ void IGFX::init() {
 			currentFramebuffer = &kextIntelICLLPFb;
 			currentFramebufferOpt = &kextIntelICLHPFb;
 			modDVMTCalcFix.available = true;
+			modForceCompleteModeset.supported = modForceCompleteModeset.enabled = true;
 			break;
 		case CPUInfo::CpuGeneration::CometLake:
 			supportsGuCFirmware = true;
@@ -152,6 +153,7 @@ void IGFX::init() {
 			currentFramebuffer = &kextIntelICLLPFb;
 			currentFramebufferOpt = &kextIntelICLHPFb;
 			modDVMTCalcFix.available = true;
+			modForceCompleteModeset.supported = modForceCompleteModeset.enabled = true;
 			break;
 		default:
 			SYSLOG("igfx", "found an unsupported processor 0x%X:0x%X, please report this!", family, model);
@@ -642,6 +644,7 @@ void IGFX::ForceCompleteModeset::processKernel(KernelPatcher &patcher, DeviceInf
 }
 
 void IGFX::ForceCompleteModeset::processFramebufferKext(KernelPatcher &patcher, size_t index, mach_vm_address_t address, size_t size) {
+	/*
 	KernelPatcher::RouteRequest request = {
 		legacy ?
 		"__ZN31AppleIntelFramebufferController16hwRegsNeedUpdateEP21AppleIntelFramebufferP21AppleIntelDisplayPathPNS_10CRTCParamsE" :
@@ -652,6 +655,14 @@ void IGFX::ForceCompleteModeset::processFramebufferKext(KernelPatcher &patcher, 
 	
 	if (!patcher.routeMultiple(index, &request, 1, address, size))
 		SYSLOG("igfx", "FCM: Failed to route the function hwRegsNeedUpdate.");
+	*/
+	
+	// AppleIntelFramebufferController::hwSetMode skip hwRegsNeedUpdate
+	static const uint8_t f2[] = {0xE8, 0x31, 0xE5, 0xFF, 0xFF, 0x84, 0xC0, 0x74, 0x3D};
+	static const uint8_t r2[] = {0xE8, 0x31, 0xE5, 0xFF, 0xFF, 0x84, 0xC0, 0xEB, 0x3D};
+
+	KernelPatcher::LookupPatch patch { &kextIntelICLLPFb, f2, r2, sizeof(f2), 1 };
+	patcher.applyLookupPatch(&patch);
 }
 
 bool IGFX::ForceCompleteModeset::wrapHwRegsNeedUpdate(void *controller, IORegistryEntry *framebuffer, void *displayPath, void *crtParams, void *detailedInfo) {
