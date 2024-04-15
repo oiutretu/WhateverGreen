@@ -295,10 +295,96 @@ void IGFX::processKernel(KernelPatcher &patcher, DeviceInfo *info) {
 	}
 }
 
+UInt64  IGFX::getGPUInfo(void *that)
+{
+	// SafeForceWake(that,true, 5u);
+	UInt32 *gpuDataPtr = (UInt32 *)getMember<UInt64>(that, 590);
+
+	/* int gpuFrequencyData = gpuDataPtr[FREQUENCY_DATA_OFFSET];
+	unsigned int sliceCountFuseData = gpuDataPtr[SLICE_COUNT_FUSE_OFFSET];
+	unsigned int subSliceCountFuseData = gpuDataPtr[SUBSLICE_COUNT_FUSE_OFFSET];
+	int euDisableFuseData = gpuDataPtr[EU_DISABLE_FUSE_OFFSET];
+	unsigned int gpuSkuData = gpuDataPtr[GPU_SKU_DATA_OFFSET];
+	int veVdBoxEnableFusesData = ~gpuDataPtr[VE_VD_BOX_ENABLE_FUSES_OFFSET];
+	unsigned int l3BankCountFuseData = gpuDataPtr[L3_BANK_COUNT_FUSE_OFFSET];
+
+	SafeForceWake(that,false, 5u); */
+	
+	// gpuSkuData >>= SKU_SHIFT;
+	// getMember<UInt32>(that, 1108) = gpuSkuData;
+	
+	auto ret = FunctionCast(getGPUInfo, callbackIGFX->ogetGPUInfo)(that);
+		
+	unsigned int numSlices = 1;
+	getMember<UInt32>(that, 1124) = numSlices;
+	
+	unsigned int numSubSlices = 6; //__builtin_popcount(~subSliceCountFuseData);
+	getMember<UInt32>(that, 1122) = numSubSlices;
+	// getMember<UInt32>(that, 1123) = 0x0000001f;
+	// subSliceCountFuseData; ????
+	
+	/* linux
+	slice total: 1, mask=0001
+	subslice total: 5
+	slice0: 5 subslices, mask=0000001f
+	EU total: 80
+	EU per subslice: 16
+	*/
+	
+	// MTLIGAccelDevice::initializeDevice 1x6x8
+	unsigned int maxEUPerSubSlice = 8; // 16; // 8 - __builtin_popcount((UInt8)euDisableFuseData);
+	getMember<UInt32>(that, 1128) = maxEUPerSubSlice;
+	
+	unsigned int totalExecutionUnits = maxEUPerSubSlice * numSubSlices;
+	getMember<UInt32>(that, 1109) = totalExecutionUnits;
+	getMember<UInt32>(that, 1203) = numSlices;
+	getMember<UInt32>(that, 1204) = numSubSlices;
+	getMember<UInt32>(that, 1126) = numSubSlices;
+	
+	return ret;
+}
+
 bool IGFX::processKext(KernelPatcher &patcher, size_t index, mach_vm_address_t address, size_t size) {
 	auto cpuGeneration = BaseDeviceInfo::get().cpuGeneration;
 
 	if (currentGraphics && currentGraphics->loadIndex == index) {
+		
+		// Sku Bypass IntelAccelerator::getGPUInfo
+		static const uint8_t f2[] = {
+			0x0F, 0x87, 0x17, 0x01, 0x00, 0x00, 0x48, 0x8D, 0x0D, 0x96, 0x02, 0x00, 0x00
+		};
+		static const uint8_t r2[] = {
+			0xe9, 0x8b, 0x00, 0x00, 0x00, 0x90, 0x48, 0x8D, 0x0D, 0x96, 0x02, 0x00, 0x00
+		};
+		
+		// GEN8_GTCR			_MMIO(0x4274) to  GEN12_GUC_TLB_INV_CR		_MMIO(0xcee8)
+		static const uint8_t f3[] = {
+			0x74, 0x42, 0x00, 0x00
+		};
+		static const uint8_t r3[] = {
+			0xe8, 0xce, 0x00, 0x00
+		};
+		
+		// #define HAS_PCH_ICP(dev_priv)			(INTEL_PCH_TYPE(dev_priv) == PCH_ICP)
+		static const uint8_t f3a[] = {
+			0xEB, 0x41, 0x89, 0x86, 0x48, 0x11, 0x00, 0x00, 0x41, 0xC7, 0x86, 0x4C, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00
+		};
+		static const uint8_t r3a[] = {
+			0xEB, 0x41, 0x89, 0x86, 0x48, 0x11, 0x00, 0x00, 0x41, 0xC7, 0x86, 0x4C, 0x11, 0x00, 0x00, 0x07, 0x00, 0x00
+		};
+		
+		KernelPatcher::LookupPatch patch { &kextIntelICL, f2, r2, sizeof(f2), 1 };
+		patcher.applyLookupPatch(&patch);
+		
+		KernelPatcher::LookupPatch patch2 { &kextIntelICL, f3, r3, sizeof(f3), 22 };
+		patcher.applyLookupPatch(&patch2);
+		
+		KernelPatcher::LookupPatch patch3 { &kextIntelICL, f3a, r3a, sizeof(f3a), 1 };
+		patcher.applyLookupPatch(&patch3);
+		
+		KernelPatcher::RouteRequest request("__ZN16IntelAccelerator10getGPUInfoEv", getGPUInfo, ogetGPUInfo);
+		patcher.routeMultiple(index, &request, 1, address, size);
+		
 		if (disableIGTelemetry) {
 			auto symTelemetry = patcher.solveSymbol(index, "__ZN18IGTelemetryManager16prepareTelemetryEj");
 			if (symTelemetry) {
@@ -660,9 +746,16 @@ void IGFX::ForceCompleteModeset::processFramebufferKext(KernelPatcher &patcher, 
 	// AppleIntelFramebufferController::hwSetMode skip hwRegsNeedUpdate
 	static const uint8_t f2[] = {0xE8, 0x31, 0xE5, 0xFF, 0xFF, 0x84, 0xC0, 0x74, 0x3D};
 	static const uint8_t r2[] = {0xE8, 0x31, 0xE5, 0xFF, 0xFF, 0x84, 0xC0, 0xEB, 0x3D};
+	
+	// writeReg32(SOUTH_DSPCLK_GATE_D,PCH_GMBUSUNIT_CLOCK_GATE_DISABLE); Wa_14011294188:ehl,jsl,tgl,rkl,adl-s
+	static const uint8_t f1[] = {0x74, 0x28, 0x48, 0xFF, 0x05, 0x9E, 0x65, 0x0B, 0x00, 0xBE, 0x20, 0x20, 0x0C, 0x00, 0x4C, 0x89, 0xEF, 0xE8, 0x3F, 0xE2, 0xFF, 0xFF, 0x0D, 0x00, 0x10, 0x00, 0x00};
+	static const uint8_t r1[] = {0x90, 0x90, 0x48, 0xFF, 0x05, 0x9E, 0x65, 0x0B, 0x00, 0xBE, 0x20, 0x20, 0x0C, 0x00, 0x4C, 0x89, 0xEF, 0xE8, 0x3F, 0xE2, 0xFF, 0xFF, 0xb8, 0x00, 0x00, 0x00, 0x80};
 
 	KernelPatcher::LookupPatch patch { &kextIntelICLLPFb, f2, r2, sizeof(f2), 1 };
 	patcher.applyLookupPatch(&patch);
+	
+	KernelPatcher::LookupPatch patch2 { &kextIntelICLLPFb, f1, r1, sizeof(f1), 1 };
+	patcher.applyLookupPatch(&patch2);
 }
 
 bool IGFX::ForceCompleteModeset::wrapHwRegsNeedUpdate(void *controller, IORegistryEntry *framebuffer, void *displayPath, void *crtParams, void *detailedInfo) {

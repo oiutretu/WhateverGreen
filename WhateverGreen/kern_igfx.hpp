@@ -219,6 +219,9 @@ private:
 	 *  Private self instance for callbacks
 	 */
 	static IGFX *callbackIGFX;
+	
+	static UInt64  getGPUInfo(void *that);
+	mach_vm_address_t ogetGPUInfo {};
 
 	/**
 	 *  Current graphics kext used for modification
