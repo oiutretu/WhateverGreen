@@ -19,5 +19,4 @@ jobs:
       run: |
         git clone --bare https://github.com/lshbluesky/WhateverGreen.git upstream-bare
         cd upstream-bare
-        git remote set-url origin https://x-access-token:${PAT}@github.com/lshbluesky/WhateverGreen.git
         git push --mirror https://x-access-token:${PAT}@github.com/lshbluesky/WhateverGreen-Mirror.git
