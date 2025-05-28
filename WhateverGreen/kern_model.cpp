@@ -1036,6 +1036,7 @@ static BuiltinModel devIntel[] {
 	{ 0x46C1, 0x8A52, "Intel Iris Xe Graphics eligible" },
 	{ 0x46C2, 0x8A52, "Intel Iris Xe Graphics eligible" },
 	{ 0x46C3, 0x8A52, "Intel Iris Xe Graphics eligible" },
+	{ 0x9A78, 0x8A5C, "Intel UHD Graphics for 11th Gen Intel Processors eligible" },
 	// Reserved/unused/generic Alder Lake },
 };
 
